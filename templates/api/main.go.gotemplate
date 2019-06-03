@@ -1,0 +1,55 @@
+package main
+
+import (
+	"fmt"
+	"log"
+	"net/http"
+	"os"
+{{if DatabaseRequired}}
+	"{{ProjectPath}}/dataservices"
+	"{{ProjectPath}}/env"
+	"{{ProjectPath}}/router"{{end}}
+	"github.com/bitrise-io/api-utils/logging"
+	"go.uber.org/zap"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
+)
+
+func main() {
+	logger := logging.WithContext(nil)
+	defer func() {
+		err := logger.Sync()
+		if err != nil {
+			fmt.Printf("Failed to sync logger: %#v", err)
+		}
+	}()
+	tracer.Start(tracer.WithServiceName("addons-ship"))
+	defer tracer.Stop()
+{{if DatabaseRequired}}
+	err := dataservices.InitializeConnection(dataservices.ConnectionParams{}, true)
+	if err != nil {
+		logger.Error("Failed to initialize DB connection", zap.Any("error", err))
+		os.Exit(1)
+	}
+	defer dataservices.Close()
+	log.Println(" [OK] Database connection established")
+{{end}}{{if DatabaseRequired}}
+	appEnv, err := env.New(dataservices.GetDB())
+	if err != nil {
+		logger.Error("Failed to initialize Application Environment object", zap.Any("error", err))
+		os.Exit(1)
+	}
+{{else}}
+	appEnv, err := env.New(nil)
+	if err != nil {
+		logger.Error("Failed to initialize Application Environment object", zap.Any("error", err))
+		os.Exit(1)
+	}
+{{end}}
+	// Routing
+	http.Handle("/", router.New(appEnv))
+
+	log.Println("Starting - using port:", appEnv.Port)
+	if err := http.ListenAndServe(":"+appEnv.Port, nil); err != nil {
+		logger.Error("Failed to initialize Ship Addon Backend", zap.Any("error", err))
+	}
+}
