@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"github.com/bitrise-io/bitrise-plugins-service/generators"
 	"github.com/spf13/cobra"
 )
 
@@ -25,6 +26,8 @@ func init() {
 }
 
 func generate(cmd *cobra.Command, args []string) error {
-
+	if serviceType == "api" {
+		return generators.GenerateAPI("", databaseDialect == "postgres")
+	}
 	return nil
 }

@@ -1,0 +1,175 @@
+format_version: 5
+default_step_lib_source: https://github.com/bitrise-io/bitrise-steplib.git
+
+app:
+  envs:
+    - RELEASE_VERSION: 0.0.5
+    - BIN_NAME: bitrise-plugins-service
+
+workflows:
+  # ----------------------------------------------------------------
+  # --- workflows for CI and testing
+  test:
+    before_run:
+      - go-test
+    after_run:
+      - integration-test
+    steps:
+
+  go-test:
+    steps:
+      - script:
+          title: Export go files to test
+          inputs:
+            - content: |-
+                #!/usr/bin/env bash
+                set -ex
+                no_vendor_paths="$(go list ./... | grep -v vendor)"
+                envman add --key GOLIST_WITHOUT_VENDOR --value "$no_vendor_paths"
+      - script:
+          title: Err check
+          inputs:
+            - content: |-
+                #!/usr/bin/env bash
+                set -ex
+                go get -u github.com/kisielk/errcheck
+                errcheck -asserts=true -blank=true $GOLIST_WITHOUT_VENDOR
+      - script:
+          title: Go lint
+          inputs:
+            - content: |-
+                #!/usr/bin/env bash
+                set -ex
+                go get -u golang.org/x/lint/golint
+                while read -r line; do
+                  echo "-> Linting: $line"
+                  golint_out="$(golint $line)"
+                  if [[ "${golint_out}" != "" ]] ; then
+                    echo "=> Golint issues found:"
+                    echo "${golint_out}"
+                    exit 1
+                  fi
+                done <<< "$GOLIST_WITHOUT_VENDOR"
+      - script:
+          title: Go test
+          inputs:
+            - content: |-
+                #!/usr/bin/env bash
+                set -ex
+                go test $(go list ./... | grep -v vendor)
+
+  integration-test:
+    steps:
+      - script:
+          title: Go build
+          inputs:
+            - content: |-
+                #!/usr/bin/env bash
+                set -ex
+
+                # build the new bitrise-plugins-service
+                current_dir=$(pwd)
+                current_bin=$current_dir/_tmp/${BIN_NAME}
+                go build -o $current_bin
+
+                envman add --key CURRENT_BIN --value $current_bin
+      - script:
+          title: Run integration tests
+          inputs:
+            - content: |-
+                #!/usr/bin/env bash
+                echo "Running integration tests ..."
+                set -ex
+
+                export INTEGRATION_TEST_BINARY_PATH="$CURRENT_BIN"
+                go test -v -tags=integration ./integrationtests/...
+
+  # ----------------------------------------------------------------
+  # --- workflows for Releasing
+  create-release:
+    title: Create release with Releaseman
+    before_run:
+      - test
+    after_run:
+      - create_binaries
+      - update_plugin_defintion
+    steps:
+      - script:
+          title:
+          inputs:
+            - content: |
+                #!/usr/bin/env bash
+                set -ex
+                go get -u github.com/bitrise-tools/releaseman
+                export CI=true
+                releaseman create-changelog \
+                  --version "$RELEASE_VERSION" \
+                  --set-version-script "bash _scripts/set_version.sh version/version.go"
+
+  create_binaries:
+    title: Create binaries
+    description: |
+      Creates Linux and Darwin binaries
+    steps:
+      - script:
+          title: create Linux and macOS (Darwin) bins, with version infos
+          inputs:
+            - content: |-
+                #!/usr/bin/env bash
+                set -e
+
+                echo
+                echo "Create release binaries"
+                echo " * Build number: $BITRISE_BUILD_NUMBER"
+                echo
+
+                set -x
+
+                git_commit_hash="$(git rev-parse HEAD)"
+                version_package="github.com/bitrise-core/bitrise-plugins-service/version"
+
+                export ARCH=x86_64
+                export GOARCH=amd64
+
+
+                # Create Darwin bin
+                export OS=Darwin
+                export GOOS=darwin
+                binary_path="_bin/${BIN_NAME}-${OS}-${ARCH}"
+
+                go build \
+                  -ldflags "-X ${version_package}.VERSION=${RELEASE_VERSION} -X ${version_package}.BuildNumber=${BITRISE_BUILD_NUMBER} -X ${version_package}.Commit=${git_commit_hash}" \
+                  -o "${binary_path}"
+
+                cp "${binary_path}" "${BITRISE_DEPLOY_DIR}/${BIN_NAME}-${OS}-${ARCH}"
+                envman add --key OSX_BIN_NAME --value "${BIN_NAME}-${OS}-${ARCH}"
+
+
+                # Create Linux binary
+                export OS=Linux
+                export GOOS=linux
+                binary_path="_bin/${BIN_NAME}-${OS}-${ARCH}"
+
+                go build \
+                  -ldflags "-X ${version_package}.VERSION=${RELEASE_VERSION} -X ${version_package}.BuildNumber=${BITRISE_BUILD_NUMBER} -X ${version_package}.Commit=${git_commit_hash}" \
+                  -o "${binary_path}"
+
+                cp "${binary_path}" "${BITRISE_DEPLOY_DIR}/${BIN_NAME}-${OS}-${ARCH}"
+                envman add --key LINUX_BIN_NAME --value "${BIN_NAME}-${OS}-${ARCH}"
+
+  update_plugin_defintion:
+    steps:
+      - script:
+          title: Create binaries
+          inputs:
+            - content: |-
+                #!/usr/bin/env bash
+                set -e
+
+                go get github.com/bitrise-io/go-utils/fileutil
+
+                go run _scripts/set_version.go \
+                  --src "https://github.com/bitrise-core/bitrise-plugins-service" \
+                  --version "$RELEASE_VERSION" \
+                  --osx_bin "$OSX_BIN_NAME" \
+                  --linux_bin "$LINUX_BIN_NAME"
