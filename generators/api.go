@@ -37,13 +37,18 @@ func EvaluateFileContent(filePath, projectPath string, withDb bool) (string, err
 
 // GenerateAPI ...
 func GenerateAPI(projectPath string, withDb bool) error {
-	err := filepath.Walk("../templates/api", func(path string, info os.FileInfo, err error) error {
+	currentDir, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	apiTemplateDirPath := currentDir + "/templates/api"
+	err = filepath.Walk(apiTemplateDirPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return errors.WithStack(err)
 		}
 
 		if ext := filepath.Ext(path); ext == ".gotemplate" {
-			newPath := strings.TrimPrefix(path, "../templates/api/")
+			newPath := strings.TrimPrefix(path, apiTemplateDirPath)
 			filename := strings.TrimSuffix(newPath, ext)
 
 			content, err := EvaluateFileContent(newPath, projectPath, withDb)
@@ -51,11 +56,11 @@ func GenerateAPI(projectPath string, withDb bool) error {
 				return errors.WithStack(err)
 			}
 			dirToCreate := filepath.Dir(filename)
-			err = os.MkdirAll(dirToCreate, os.ModePerm)
+			err = os.MkdirAll("."+dirToCreate, os.ModePerm)
 			if err != nil {
 				return errors.WithStack(err)
 			}
-			if err := fileutil.WriteStringToFile(filename, content); err != nil {
+			if err := fileutil.WriteStringToFile("."+filename, content); err != nil {
 				return errors.Wrapf(err, "Failed to write evaluated template into file (%s)", filename)
 			}
 		}

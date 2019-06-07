@@ -1,21 +1,49 @@
-// Copyright © 2019 NAME HERE <EMAIL ADDRESS>
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 package main
 
-import "github.com/bitrise-io/bitrise-plugins-service/cmd"
+import (
+	"fmt"
+	"log"
+	"net/http"
+	"os"
+
+	"/dataservices"
+	"/env"
+	"/router"
+	"github.com/bitrise-io/api-utils/logging"
+	"go.uber.org/zap"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
+)
 
 func main() {
-	cmd.Execute()
+	logger := logging.WithContext(nil)
+	defer func() {
+		err := logger.Sync()
+		if err != nil {
+			fmt.Printf("Failed to sync logger: %#v", err)
+		}
+	}()
+	tracer.Start(tracer.WithServiceName("addons-ship"))
+	defer tracer.Stop()
+
+	err := dataservices.InitializeConnection(dataservices.ConnectionParams{}, true)
+	if err != nil {
+		logger.Error("Failed to initialize DB connection", zap.Any("error", err))
+		os.Exit(1)
+	}
+	defer dataservices.Close()
+	log.Println(" [OK] Database connection established")
+
+	appEnv, err := env.New(dataservices.GetDB())
+	if err != nil {
+		logger.Error("Failed to initialize Application Environment object", zap.Any("error", err))
+		os.Exit(1)
+	}
+
+	// Routing
+	http.Handle("/", router.New(appEnv))
+
+	log.Println("Starting - using port:", appEnv.Port)
+	if err := http.ListenAndServe(":"+appEnv.Port, nil); err != nil {
+		logger.Error("Failed to initialize Ship Addon Backend", zap.Any("error", err))
+	}
 }
