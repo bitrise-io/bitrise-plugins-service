@@ -5,6 +5,8 @@ app:
   envs:
     - RELEASE_VERSION: 0.0.1
     - BIN_NAME: bitrise-plugins-service
+    - OSX_BIN_NAME: bitrise-plugins-service-Darwin-x86_64
+    - LINUX_BIN_NAME: bitrise-plugins-service-Linux-x86_64
 
 workflows:
   # ----------------------------------------------------------------
@@ -169,7 +171,7 @@ workflows:
                 go get github.com/bitrise-io/go-utils/fileutil
 
                 go run _scripts/set_version.go \
-                  --src "https://github.com/bitrise-core/bitrise-plugins-service" \
+                  --src "https://github.com/bitrise-io/bitrise-plugins-service" \
                   --version "$RELEASE_VERSION" \
                   --osx_bin "$OSX_BIN_NAME" \
                   --linux_bin "$LINUX_BIN_NAME"
