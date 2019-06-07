@@ -8,6 +8,7 @@ import (
 var (
 	serviceType     string
 	databaseDialect string
+	projectPath     string
 )
 
 var generateCmd = &cobra.Command{
@@ -23,11 +24,12 @@ func init() {
 	rootCmd.AddCommand(generateCmd)
 	generateCmd.Flags().StringVar(&serviceType, "type", "", "Type of the service")
 	generateCmd.Flags().StringVar(&databaseDialect, "db", "", "Generate database with dialect")
+	generateCmd.Flags().StringVar(&projectPath, "path", "", "Source controll path of your project (e.g. github.com/my-org/my-project)")
 }
 
 func generate(cmd *cobra.Command, args []string) error {
 	if serviceType == "api" {
-		return generators.GenerateAPI("", databaseDialect == "postgres")
+		return generators.GenerateAPI(projectPath, databaseDialect == "postgres")
 	}
 	return nil
 }
