@@ -28,8 +28,3 @@ func Test_EvaluateFileContent(t *testing.T) {
 		require.EqualError(t, err, fmt.Sprintf("open %s: no such file or directory", filePath))
 	})
 }
-
-func Test_GenerateAPI(t *testing.T) {
-	generators.GenerateAPI("github.com/my-github-account/my-project-name", true)
-	t.FailNow()
-}
