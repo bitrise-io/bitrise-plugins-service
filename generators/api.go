@@ -7,6 +7,7 @@ import (
 	"text/template"
 
 	rice "github.com/GeertJohan/go.rice"
+	"github.com/GeertJohan/go.rice/embedded"
 	"github.com/bitrise-io/go-utils/fileutil"
 	"github.com/bitrise-io/go-utils/templateutil"
 	"github.com/pkg/errors"
@@ -14,7 +15,7 @@ import (
 
 // EvaluateFileContent ...
 func EvaluateFileContent(filePath, projectPath string, withDb bool) (string, error) {
-	templateBox, err := rice.FindBox("../templates/api")
+	templateBox, err := rice.FindBox("./templates/api")
 	if err != nil {
 		return "", errors.WithStack(err)
 	}
@@ -37,37 +38,23 @@ func EvaluateFileContent(filePath, projectPath string, withDb bool) (string, err
 
 // GenerateAPI ...
 func GenerateAPI(projectPath string, withDb bool) error {
-	currentDir, err := os.Getwd()
-	if err != nil {
-		return err
-	}
-	apiTemplateDirPath := currentDir + "/templates/api"
-	err = filepath.Walk(apiTemplateDirPath, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return errors.WithStack(err)
-		}
-
-		if ext := filepath.Ext(path); ext == ".gotemplate" {
-			newPath := strings.TrimPrefix(path, apiTemplateDirPath)
-			filename := strings.TrimSuffix(newPath, ext)
-
-			content, err := EvaluateFileContent(newPath, projectPath, withDb)
+	box := embedded.EmbeddedBoxes["./templates/api"]
+	for _, file := range box.Files {
+		if ext := filepath.Ext(file.Filename); ext == ".gotemplate" {
+			filename := strings.TrimSuffix(file.Filename, ext)
+			content, err := EvaluateFileContent(file.Filename, projectPath, withDb)
 			if err != nil {
 				return errors.WithStack(err)
 			}
 			dirToCreate := filepath.Dir(filename)
-			err = os.MkdirAll("."+dirToCreate, os.ModePerm)
+			err = os.MkdirAll(dirToCreate, os.ModePerm)
 			if err != nil {
 				return errors.WithStack(err)
 			}
-			if err := fileutil.WriteStringToFile("."+filename, content); err != nil {
-				return errors.Wrapf(err, "Failed to write evaluated template into file (%s)", filename)
+			if err := fileutil.WriteStringToFile(filename, content); err != nil {
+				return errors.Wrapf(err, "Failed to write evaluated template into file (%s)", file.Filename)
 			}
 		}
-		return nil
-	})
-	if err != nil {
-		return errors.WithStack(err)
 	}
 	return nil
 }
