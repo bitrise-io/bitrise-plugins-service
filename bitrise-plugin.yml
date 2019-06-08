@@ -4,8 +4,8 @@ description: |
 executable:
   osx: https://github.com/bitrise-io/bitrise-plugins-service/releases/download/0.0.1/bitrise-plugins-service-Darwin-x86_64
   linux: https://github.com/bitrise-io/bitrise-plugins-service/releases/download/0.0.1/bitrise-plugins-service-Linux-x86_64
-trigger: ''
+trigger: ""
 requirements:
-  - tool: bitrise
-    min_version: 1.3.0
-    max_version: ''
+- tool: bitrise
+  min_version: 1.3.0
+  max_version: ""

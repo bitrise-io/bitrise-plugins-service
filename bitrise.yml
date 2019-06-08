@@ -14,8 +14,6 @@ workflows:
   test:
     before_run:
       - go-test
-    after_run:
-      - integration-test
     steps:
 
   go-test:
@@ -102,7 +100,8 @@ workflows:
             - content: |
                 #!/usr/bin/env bash
                 set -ex
-                go get -u github.com/bitrise-tools/releaseman
+                go get -u github.com/bitrise-tools/releaseman@236729b52920a686f4379b36f658335df20c8039
+                # go get -u github.com/bitrise-tools/releaseman
                 export CI=true
                 releaseman create-changelog \
                   --version "$RELEASE_VERSION" \
