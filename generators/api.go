@@ -13,8 +13,17 @@ import (
 	"github.com/pkg/errors"
 )
 
+// Config ...
+type Config struct {
+	DBDialect      string
+	ProjectPath    string
+	ProjectName    string
+	ConfigFilePath string
+	AWS            bool
+}
+
 // EvaluateFileContent ...
-func EvaluateFileContent(filePath, projectPath string, withDb bool) (string, error) {
+func EvaluateFileContent(filePath string, config Config) (string, error) {
 	templateBox, err := rice.FindBox("./templates/api")
 	if err != nil {
 		return "", errors.WithStack(err)
@@ -26,8 +35,10 @@ func EvaluateFileContent(filePath, projectPath string, withDb bool) (string, err
 	}
 
 	evaluatedContent, err := templateutil.EvaluateTemplateStringToString(tmpContent, nil, template.FuncMap{
-		"DatabaseRequired": func() bool { return withDb },
-		"ProjectPath":      func() string { return projectPath },
+		"DatabaseRequired": func() bool { return config.DBDialect == "postgres" },
+		"ProjectPath":      func() string { return config.ProjectPath },
+		"ProjectName":      func() string { return config.ProjectName },
+		"AWS":              func() bool { return config.AWS },
 	})
 	if err != nil {
 		return "", errors.WithStack(err)
@@ -37,12 +48,12 @@ func EvaluateFileContent(filePath, projectPath string, withDb bool) (string, err
 }
 
 // GenerateAPI ...
-func GenerateAPI(projectPath string, withDb bool) error {
+func GenerateAPI(config Config) error {
 	box := embedded.EmbeddedBoxes["./templates/api"]
 	for _, file := range box.Files {
 		if ext := filepath.Ext(file.Filename); ext == ".gotemplate" {
 			filename := strings.TrimSuffix(file.Filename, ext)
-			content, err := EvaluateFileContent(file.Filename, projectPath, withDb)
+			content, err := EvaluateFileContent(file.Filename, config)
 			if err != nil {
 				return errors.WithStack(err)
 			}

@@ -16,15 +16,20 @@ func Test_EvaluateFileContent(t *testing.T) {
 	require.NoError(t, err)
 	projectRoot := strings.TrimSuffix(currentDir, "/generators")
 
+	config := generators.Config{
+		ProjectPath: "github.com/my-github-account/my-project-name",
+		DBDialect:   "postgres",
+	}
+
 	t.Run("ok when generating with database", func(t *testing.T) {
-		generatedContent, err := generators.EvaluateFileContent("main.go.gotemplate", "github.com/my-github-account/my-project-name", true)
+		generatedContent, err := generators.EvaluateFileContent("main.go.gotemplate", config)
 		require.NoError(t, err)
 		require.Equal(t, getTestData(t), generatedContent)
 	})
 
 	t.Run("when no file exists with the given name", func(t *testing.T) {
-		_, err := generators.EvaluateFileContent("non-existing.file", "github.com/my-github-account/my-project-name", true)
-		filePath := filepath.Join(projectRoot, "templates/api/non-existing.file")
+		_, err := generators.EvaluateFileContent("non-existing.file", config)
+		filePath := filepath.Join(projectRoot, "generators/templates/api/non-existing.file")
 		require.EqualError(t, err, fmt.Sprintf("open %s: no such file or directory", filePath))
 	})
 }
